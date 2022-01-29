@@ -1,0 +1,14 @@
+version: '3.9'
+
+services:
+  app:
+    build: .
+    restart: always
+    ports:
+      - '8581:3000'
+    volumes:
+      - cache:/root/.cache/
+      - ./lib/cert/test-config.json:/root/lib/cert/test-config.json
+
+volumes:
+  cache:
