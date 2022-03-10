@@ -26,7 +26,6 @@ func (t T) Basic() {
 	mock := t.Serve().Route("/", "", key)
 	cf := conf.New("../../config.json")
 	cf.Domains[0].Routes[0].Selector = conf.Selector{Exp: "test"}
-	cf.Domains[0].Routes[0].Destination = mock.HostURL.Host
 	s := server.New(cf)
 
 	go s.Serve()

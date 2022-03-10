@@ -47,10 +47,12 @@ type Domain struct {
 
 // Route ...
 type Route struct {
-	Selector Selector `json:"selector"`
+	// Priority of the route, the smaller the higher
+	Priority int `json:"priority"`
 
-	// Destination for the proxy
-	Destination string `json:"destination"`
+	Token string `json:"token"`
+
+	Selector Selector `json:"selector"`
 }
 
 // SelectorType ...
@@ -110,26 +112,26 @@ func (c *Conf) Get(domain string) (*Domain, bool) {
 	return nil, false
 }
 
-// MatchDestination ...
-func (d *Domain) MatchDestination(domain string) (string, bool) {
+// Match ...
+func (d *Domain) Match(domain string) bool {
 	subdomain := strings.TrimRight(strings.TrimRight(domain, d.Domain), ".")
 
 	for _, r := range d.Routes {
 		switch r.Selector.Type {
 		case SelectorTypeString:
 			if r.Selector.Exp == subdomain {
-				return r.Destination, true
+				return true
 			}
 		case SelectorTypeRegexp:
 			if r.Selector.reg == nil {
 				r.Selector.reg = regexp.MustCompile(r.Selector.Exp)
 			}
 			if r.Selector.reg.MatchString(subdomain) {
-				return r.Destination, true
+				return true
 			}
 		}
 	}
-	return "", false
+	return false
 }
 
 // Duration ...

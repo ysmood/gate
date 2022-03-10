@@ -1,0 +1,48 @@
+syntax = "proto3";
+
+option go_package = "./lib/pb;message";
+
+// Message ...
+message Message {
+	uint64 id = 1;
+	oneof content {
+		Result result = 2;
+		Auth auth = 3;
+		Connect connect = 4;
+		Packet packet = 5;
+	}
+}
+
+// Result ...
+message Result {
+	enum Status {
+		Forbidden = 0;
+		InvalidSelector = 1;
+	}
+	string description = 2;
+}
+
+// Auth ...
+message Auth {
+	string token = 1;
+	string domain = 2;
+	string subdomain = 3;
+}
+
+// Connect ...
+message Connect {
+}
+
+// Packet ...
+message Packet {
+	bytes data = 1;
+}
+
+// End connection
+message End {
+	enum Status {
+		OK = 0;
+		Broken = 1;
+	}
+	string description = 2;
+}

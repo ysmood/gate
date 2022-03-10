@@ -6,9 +6,8 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"time"
+	"sync"
 
-	gocache "github.com/patrickmn/go-cache"
 	"github.com/sirupsen/logrus"
 	"github.com/ysmood/gate/lib/cert"
 	"github.com/ysmood/gate/lib/conf"
@@ -20,23 +19,24 @@ type Server struct {
 
 	conf *conf.Conf
 
-	cert  *cert.Manager
-	cache *gocache.Cache
+	certManager *cert.Manager
 
 	tlsListener  net.Listener
 	httpListener net.Listener
+
+	clients sync.Map
 }
 
 // New ...
 func New(c *conf.Conf) *Server {
 	s := &Server{
-		Logger: logrus.New(),
-		conf:   c,
-		cert:   cert.New(),
-		cache:  gocache.New(5*time.Minute, 10*time.Minute),
+		Logger:      logrus.New(),
+		conf:        c,
+		certManager: cert.New(),
+		clients:     sync.Map{},
 	}
 
-	s.cert.Start()
+	s.certManager.Start()
 	s.preheatCerts()
 
 	ln, err := net.Listen("tcp", c.TLSAddr)
@@ -95,30 +95,7 @@ func (s *Server) handleTLS(conn net.Conn) {
 
 	src := tls.Server(conn, &tls.Config{
 		GetCertificate: func(chi *tls.ClientHelloInfo) (*tls.Certificate, error) {
-			if v, has := s.cache.Get(chi.ServerName); has {
-				c := v.(*certCache)
-				dstAddr = c.destination
-				return c.cert, nil
-			}
-
-			d, has := s.conf.Get(chi.ServerName)
-			if !has {
-				return nil, fmt.Errorf("cert not found")
-			}
-
-			cert, err := s.cert.Get(d)
-			if err != nil {
-				return nil, err
-			}
-
-			dstAddr, has = d.MatchDestination(chi.ServerName)
-			if !has {
-				return nil, fmt.Errorf("not proxy destination found")
-			}
-
-			c := &certCache{cert: cert.TLS(), destination: dstAddr}
-			s.cache.Set(chi.ServerName, c, 0)
-			return c.cert, nil
+			return s.route(chi)
 		},
 	})
 
@@ -141,16 +118,31 @@ func (s *Server) handleTLS(conn net.Conn) {
 	_, _ = io.Copy(src, dst)
 }
 
+func (s *Server) route(chi *tls.ClientHelloInfo) (*tls.Certificate, error) {
+	d, has := s.conf.Get(chi.ServerName)
+	if !has {
+		return nil, fmt.Errorf("cert not found")
+	}
+
+	cert, err := s.certManager.Get(d)
+	if err != nil {
+		return nil, err
+	}
+
+	has = d.Match(chi.ServerName)
+	if !has {
+		return nil, fmt.Errorf("not proxy destination found")
+	}
+
+	return cert.TLS(), nil
+}
+
 func (s *Server) preheatCerts() {
 	for _, d := range s.conf.Domains {
-		_, err := s.cert.Get(d)
+		_, err := s.certManager.Get(d)
 		if err != nil {
 			s.Logger.Fatal(err)
 		}
 	}
-}
-
-type certCache struct {
-	cert        *tls.Certificate
-	destination string
+	s.certManager.AutoRenewAll()
 }

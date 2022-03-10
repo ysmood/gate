@@ -32,28 +32,28 @@ Create `gate.json` file like below (doc for config: [conf.go](lib/conf/conf.go))
 
 Run `go run ./cmd/server` to start the gate service.
 
-Run `go run ./cmd/client -h test.com -s x -t xxx -d :3001`
-to proxy TLS connections from `x.test.com` to `:3001`.
+Run `go run ./cmd/client -h test.com -t xxx -d :3000`
+to proxy TLS connections from `test.com` to `:3000`.
 
-Run `go run ./cmd/client -h test.com -s y -t yyy -d :3002`
-to proxy TLS connections from `y.test.com` to `:3002`.
+Run `go run ./cmd/client -h test.com -s sub -t yyy -d :3001`
+to proxy TLS connections from subdomain `sub.test.com` to `:3001`.
 
-Run two test http servers `go run ./cmd/hello -p :3001` and `go run ./cmd/hello -p :3002`
+Run two test http servers `go run ./cmd/hello -p :3000` and `go run ./cmd/hello -p :3001`
 
-The clients don't have to be the same network as the server, they will use
+The clients don't have to be in the same network as the server, they will use
 TLS to securely communicate with each other.
 
 The diagram below shows how the above setup works:
 
 ```mermaid
 flowchart TB
-    browser1["browser visits x.test.com"]
-    browser2["browser visits y.test.com"]
+    browser1["browser visits test.com"]
+    browser2["browser visits sub.test.com"]
     server["go run ./cmd/server"]
-    x-client["go run ./cmd/client -h test.com -s x -t xxx -d :3001"]
-    y-client["go run ./cmd/client -h test.com -s y -t yyy -d :3002"]
-    x["go run ./cmd/hello -p :3001"]
-    y["go run ./cmd/hello -p :3002"]
+    x-client["go run ./cmd/client -h test.com -t xxx -d :3000"]
+    y-client["go run ./cmd/client -h test.com -s sub -t yyy -d :3001"]
+    x["go run ./cmd/hello -p :3000"]
+    y["go run ./cmd/hello -p :3001"]
 
     browser1 & browser2 -- tls/tcp --> server
 
@@ -87,4 +87,23 @@ func main() {
         w.Write([]byte("hello!"))
     }))
 }
+```
+
+## TODO
+
+### [mTLS](https://en.wikipedia.org/wiki/Mutual_authentication)
+
+Such as use the same domain for both staging/production env. The staging service tells gate it only accepts the requests coming from cert1, other certs will be routed to production service.
+
+```mermaid
+flowchart TB
+    cert1["cert1 visits test.com"]
+    cert2["cert2 visits test.com"]
+    gate
+    stg["staging service on :3000"]
+    prd["production service on :3001"]
+
+    cert1 & cert2 -- tls --> gate
+    gate -- tcp from cert1 --> stg
+    gate -- tcp from cert2 --> prd
 ```
